@@ -44,3 +44,44 @@ exports.newTask = functions.firestore
             }
         })
     });
+
+exports.updateUser = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (change, context) => {
+        const id = change.after.id
+        const previousValue = change.before.data()
+        const newValue = change.after.data()
+
+        for await (const minister of newValue.ministers) {
+            const previousMinisters = previousValue.ministers.map(m => m.id)
+            if (!previousMinisters.includes(minister.id)) {
+                admin
+                    .firestore()
+                    .collection('ministers')
+                    .doc(minister.id)
+                    .get()
+                    .then(data => {
+                        let m = data.data()
+                        if (m.users) {
+                            m.users.push(id)
+                        } else {
+                            m.users = [id]
+                        }
+
+                        admin
+                            .firestore()
+                            .collection(ministers)
+                            .doc(minister.id)
+                            .set({ users: m.users })
+                            .catch(error => {
+                                functions.logger.error(`An ocorred error while update minister: ${minister.id}`, error)
+                            })
+                    })
+                    .catch(error => {
+                        functions.logger.error(`An ocorred error while find minister: ${minister.id}`, error)
+                    })
+            }
+        }
+
+
+    })
