@@ -30,11 +30,11 @@ exports.newTask = functions.firestore
         const notification = {
             notification: {
                 title: 'Uma nova escala pra você!',
-                body: `No dia ${moment(newTask.date).format('DD/MM/YY')} você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}.`
+                body: `[${newTask.minister.name}] No dia ${moment(newTask.date).format('DD/MM/YY')} você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}.`
             }
         }
 
-        await sendNotification(tokens, notification, snap);
+        await sendNotification(tokens, notification, snap.id);
     });
 
 // exports.updateUser = functions.firestore
@@ -80,20 +80,25 @@ exports.newTask = functions.firestore
 //     })
 
 exports.sendDailyNotifications = functions.pubsub
-    .schedule('every 08:00')
-    .onRun(context => {
+    .schedule('0 8 * * *')
+    .onRun(async context => {
         let todayStart = moment()
         let todayEnd = moment()
         todayStart.startOf('day')
         todayEnd.endOf('day')
 
+        functions.logger.info(`todayStart: ${todayStart} | todayEnd: ${todayEnd}`)
+
         const todayTasks = await admin.firestore()
             .collection('tasks')
-            .where('date', '>', todayStart.toDate())
-            .where('date', '<', todayEnd.toDate())
+            .where('date', '>=', todayStart.toDate())
+            .where('date', '<=', todayEnd.toDate())
             .get()
 
-        for await (const doc of todayTasks.docs.map(d => ({ id: d.id, ...d.data() }))) {
+        const docs = todayTasks.docs.map(d => ({ id: d.id, ...d.data() }))
+        functions.logger.info(`docs: ${JSON.stringify(docs.map(d => d.id))}`)
+
+        for await (const doc of docs) {
             let ministry = await admin.firestore()
                 .collection('users')
                 .doc(doc.ministry.id)
@@ -103,7 +108,7 @@ exports.sendDailyNotifications = functions.pubsub
             const notification = {
                 notification: {
                     title: 'Não se esquece hein!',
-                    body: `Hoje você está escalado no ministério: ${doc.minister.name}`
+                    body: `Hoje você está escalado(a) no(a) ${doc.minister.name}`
                 }
             }
 
@@ -112,14 +117,16 @@ exports.sendDailyNotifications = functions.pubsub
     })
 
 exports.sendTomorrowNotifications = functions.pubsub
-    .schedule('every 08:00')
-    .onRun(context => {
+    .schedule('0 8 * * *')
+    .onRun(async context => {
         let tomorrowStart = moment()
         let tomorrowEnd = moment()
         tomorrowStart.add(1, 'day')
         tomorrowEnd.add(1, 'day')
         tomorrowStart.startOf('day')
         tomorrowEnd.endOf('day')
+
+        functions.logger.info(`todayStart: ${todayStart} | todayEnd: ${todayEnd}`)
 
         const todayTasks = await admin.firestore()
             .collection('tasks')
@@ -137,7 +144,7 @@ exports.sendTomorrowNotifications = functions.pubsub
             const notification = {
                 notification: {
                     title: 'Não se esquece hein!',
-                    body: `Amanhã você está escalado no ministério: ${doc.minister.name}`
+                    body: `Amanhã você está escalado(a) no(a) ${doc.minister.name}`
                 }
             }
 
@@ -146,6 +153,8 @@ exports.sendTomorrowNotifications = functions.pubsub
     })
 
 async function sendNotification(tokens, notification, taskId) {
+    functions.logger.info(`send notification: ${JSON.stringify({ tokens, notification, taskId })}`)
+
     const notificationResult = await admin
         .messaging()
         .sendToDevice(tokens, notification);
