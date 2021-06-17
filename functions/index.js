@@ -152,6 +152,30 @@ exports.sendTomorrowNotifications = functions.pubsub
         }
     })
 
+exports.newChangeRequest = functions.firestore
+    .document('change-requests/{changeRequestId}')
+    .onCreate(async (snap, context) => {
+        const newChangeRequest = snap.data();
+        const ministerId = newChangeRequest.task.minister.id
+
+        const usersData = await admin
+            .firestore()
+            .collection('users')
+            .where('ministers', 'array-contains', ministerId)
+            .get()
+
+        const tokens = usersData.data().map(d => d.tokens) || []
+
+        const notification = {
+            notification: {
+                title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
+                body: `Precisa de troca no dia ${moment(newTask.date).format('DD/MM/YY')}.`
+            }
+        }
+
+        await sendNotification(tokens, notification, doc.id)
+    });
+
 async function sendNotification(tokens, notification, taskId) {
     functions.logger.info(`send notification: ${JSON.stringify({ tokens, notification, taskId })}`)
 
