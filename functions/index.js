@@ -186,6 +186,25 @@ exports.newChangeRequest = functions.firestore
         await sendNotification(tokens, notification, snap.id)
     });
 
+exports.deletingTask = functions.firestore
+    .document('tasks')
+    .onDelete(async (snap, context) => {
+        const taskId = snap.id
+
+        admin.firestore()
+            .collection('change-requests')
+            .where('task.id', '==', taskId)
+            .get()
+            .then(data => {
+                data.docs.forEach(doc => {
+                    admin.firestore()
+                        .collection('change-requests')
+                        .doc(doc.id)
+                        .delete()
+                })
+            })
+    })
+
 async function sendNotification(tokens, notification, taskId) {
     functions.logger.info(`send notification: ${JSON.stringify({ tokens, notification, taskId })}`)
 
