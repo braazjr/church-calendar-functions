@@ -30,7 +30,7 @@ exports.newTask = functions.firestore
         const notification = {
             notification: {
                 title: 'Uma nova escala pra você!',
-                body: `[${newTask.minister.name}] No dia ${moment(newTask.date).format('DD/MM/YY')} você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}.`
+                body: `[${newTask.minister.name}] No dia ${moment(newTask.date).format('DD/MM/YY')}${newTask.functions.length > 0 ? ` você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}` : ''}.`
             }
         }
 
@@ -158,22 +158,32 @@ exports.newChangeRequest = functions.firestore
         const newChangeRequest = snap.data();
         const ministerId = newChangeRequest.task.minister.id
 
+        functions.logger.info(`check users from ministerId: ${ministerId}`)
+
         const usersData = await admin
             .firestore()
             .collection('users')
             .where('ministers', 'array-contains', ministerId)
             .get()
 
-        const tokens = usersData.data().map(d => d.tokens) || []
+        if (!usersData) return
+
+        const usersFound = usersData.docs
+            .filter(d => d.id != newChangeRequest.task.ministry.id)
+            .map(d => d.data())
+        functions.logger.info(`users found: ${JSON.stringify(usersFound)}`)
+
+        let tokens = usersFound.map(d => d.tokens) || []
+        tokens = tokens.flat(2)
 
         const notification = {
             notification: {
                 title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
-                body: `Precisa de troca no dia ${moment(newTask.date).format('DD/MM/YY')}.`
+                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date).format('DD/MM/YY')}.`
             }
         }
 
-        await sendNotification(tokens, notification, doc.id)
+        await sendNotification(tokens, notification, snap.id)
     });
 
 async function sendNotification(tokens, notification, taskId) {
