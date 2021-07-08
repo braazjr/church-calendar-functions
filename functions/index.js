@@ -37,48 +37,6 @@ exports.newTask = functions.firestore
         await sendNotification(tokens, notification, snap.id);
     });
 
-// exports.updateUser = functions.firestore
-//     .document('users/{userId}')
-//     .onUpdate(async (change, context) => {
-//         const id = change.after.id
-//         const previousValue = change.before.data()
-//         const newValue = change.after.data()
-
-//         functions.logger.info(`-- news ministers: ${newValue.ministers}`)
-//         for await (const minister of newValue.ministers) {
-//             const previousMinisters = previousValue.ministers.map(m => m.id)
-//             if (!previousMinisters.includes(minister.id)) {
-//                 admin
-//                     .firestore()
-//                     .collection('ministers')
-//                     .doc(minister.id)
-//                     .get()
-//                     .then(data => {
-//                         let m = data.data()
-//                         if (m.users) {
-//                             m.users.push(id)
-//                         } else {
-//                             m.users = [id]
-//                         }
-
-//                         admin
-//                             .firestore()
-//                             .collection(ministers)
-//                             .doc(minister.id)
-//                             .set({ users: m.users })
-//                             .catch(error => {
-//                                 functions.logger.error(`An ocorred error while update minister: ${minister.id}`, error)
-//                             })
-//                     })
-//                     .catch(error => {
-//                         functions.logger.error(`An ocorred error while find minister: ${minister.id}`, error)
-//                     })
-//             }
-//         }
-
-
-//     })
-
 exports.sendDailyNotifications = functions.pubsub
     .schedule('0 8 * * *')
     .onRun(async context => {
@@ -187,7 +145,7 @@ exports.newChangeRequest = functions.firestore
     });
 
 exports.deletingTask = functions.firestore
-    .document('tasks')
+    .document('tasks/{taskId}')
     .onDelete(async (snap, context) => {
         const taskId = snap.id
 
@@ -204,6 +162,79 @@ exports.deletingTask = functions.firestore
                 })
             })
     })
+
+exports.updateUser = functions.firestore
+    .document('users/{userId}')
+    .onUpdate(async (snap, context) => {
+        const userId = context.params.userId
+        functions.logger.info(`monitor user: ${userId}`)
+
+        const ministersNotification = await checkAndNotifyNewMinister(snap)
+        const ministersLeadNotification = await checkAndNotifyNewMinisterLead(snap)
+
+        const user = await getUserById(userId)
+
+        const tokens = user.tokens
+        functions.logger.info(`send to tokens: ${tokens.toString()}`)
+
+        ministersNotification && await sendNotification(tokens, ministersNotification, snap.id)
+        ministersLeadNotification && await sendNotification(tokens, ministersLeadNotification, snap.id)
+    })
+
+async function checkAndNotifyNewMinister(snap) {
+    const newMinister = snap.after.data().ministers.find(minister => snap.before.data().ministers.includes(minister));
+    functions.logger.info(`new minister: ${newMinister}`);
+
+    const minister = await getMinisterById(newMinister);
+
+    const notification = {
+        notification: {
+            title: `Novo ministério`,
+            body: `Você acaba de entrar no(a) ${minister.name}.`
+        }
+    };
+    return notification;
+}
+
+async function checkAndNotifyNewMinisterLead(snap) {
+    const newMinister = snap.after.data().ministersLead.find(minister => snap.before.data().ministersLead.includes(minister));
+    functions.logger.info(`new ministersLead: ${newMinister}`);
+
+    const minister = await getMinisterById(newMinister);
+
+    if (minister) {
+
+        const notification = {
+            notification: {
+                title: `Novo ministério`,
+                body: `Você acaba de se tornar líder no(a) ${minister.name}.`
+            }
+        };
+        return notification;
+    } else {
+        return undefined
+    }
+}
+
+async function getUserById(userId) {
+    const user = await admin
+        .firestore()
+        .collection('users')
+        .doc(userId)
+        .get();
+
+    return user.exists ? { id: user.id, ...user.data() } : undefined;
+}
+
+async function getMinisterById(newMinister) {
+    const minister = await admin
+        .firestore()
+        .collection('ministers')
+        .doc(newMinister)
+        .get();
+
+    return minister.exists ? { id: minister.id, ...minister.data() } : undefined
+}
 
 async function sendNotification(tokens, notification, taskId) {
     functions.logger.info(`send notification: ${JSON.stringify({ tokens, notification, taskId })}`)
