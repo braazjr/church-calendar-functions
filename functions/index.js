@@ -84,7 +84,7 @@ exports.sendTomorrowNotifications = functions.pubsub
         tomorrowStart.startOf('day')
         tomorrowEnd.endOf('day')
 
-        functions.logger.info(`todayStart: ${todayStart} | todayEnd: ${todayEnd}`)
+        functions.logger.info(`todayStart: ${tomorrowStart} | todayEnd: ${tomorrowEnd}`)
 
         const todayTasks = await admin.firestore()
             .collection('tasks')
