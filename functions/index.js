@@ -30,7 +30,7 @@ exports.newTask = functions.firestore
         const notification = {
             notification: {
                 title: 'Uma nova escala pra você!',
-                body: `[${newTask.minister.name}] No dia ${moment(newTask.date).format('DD/MM/YY')}${newTask.functions.length > 0 ? ` você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}` : ''}.`
+                body: `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')}${newTask.functions.length > 0 ? ` você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}` : ''}.`
             }
         }
 
