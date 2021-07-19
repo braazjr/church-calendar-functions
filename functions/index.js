@@ -182,7 +182,7 @@ exports.updateUser = functions.firestore
     })
 
 async function checkAndNotifyNewMinister(snap) {
-    const newMinister = snap.after.data().ministers.find(minister => snap.before.data().ministers.includes(minister));
+    const newMinister = snap.after.data().ministers.find(minister => !snap.before.data().ministers.includes(minister));
     functions.logger.info(`new minister: ${newMinister}`);
 
     const minister = await getMinisterById(newMinister);
@@ -197,7 +197,7 @@ async function checkAndNotifyNewMinister(snap) {
 }
 
 async function checkAndNotifyNewMinisterLead(snap) {
-    const newMinister = snap.after.data().ministersLead.find(minister => snap.before.data().ministersLead.includes(minister));
+    const newMinister = snap.after.data().ministersLead.find(minister => !snap.before.data().ministersLead.includes(minister));
     functions.logger.info(`new ministersLead: ${newMinister}`);
 
     const minister = await getMinisterById(newMinister);
