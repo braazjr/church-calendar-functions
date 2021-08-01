@@ -38,7 +38,7 @@ exports.newTask = functions.firestore
     });
 
 exports.sendDailyNotifications = functions.pubsub
-    .schedule('0 8 * * *')
+    .schedule('0 5 * * *') // 8 MORNING
     .onRun(async context => {
         let todayStart = moment()
         let todayEnd = moment()
@@ -75,7 +75,7 @@ exports.sendDailyNotifications = functions.pubsub
     })
 
 exports.sendTomorrowNotifications = functions.pubsub
-    .schedule('0 8 * * *')
+    .schedule('0 5 * * *') // 8 MORNING
     .onRun(async context => {
         let tomorrowStart = moment()
         let tomorrowEnd = moment()
@@ -137,7 +137,7 @@ exports.newChangeRequest = functions.firestore
         const notification = {
             notification: {
                 title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
-                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date).format('DD/MM/YY')}.`
+                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date).add(1, 'day').format('DD/MM/YY')}.`
             }
         }
 
