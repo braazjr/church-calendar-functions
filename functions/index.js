@@ -137,7 +137,7 @@ exports.newChangeRequest = functions.firestore
         const notification = {
             notification: {
                 title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
-                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date).add(1, 'day').format('DD/MM/YY')}.`
+                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
             }
         }
 
