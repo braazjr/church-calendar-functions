@@ -116,12 +116,19 @@ exports.newChangeRequest = functions.firestore
         const newChangeRequest = snap.data();
         const ministerId = newChangeRequest.task.minister.id
 
+        const ministerData = await admin
+            .firestore()
+            .collection('ministers')
+            .doc(ministerId)
+            .get()
+
         functions.logger.info(`check users from ministerId: ${ministerId}`)
 
+        let targetField = (ministerData.data().changesFree || ministerData.data().changesFree == undefined) ? 'ministers' : 'ministersLead'
         const usersData = await admin
             .firestore()
             .collection('users')
-            .where('ministers', 'array-contains', ministerId)
+            .where(targetField, 'array-contains', ministerId)
             .get()
 
         if (!usersData) return
