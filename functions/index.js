@@ -31,6 +31,10 @@ exports.newTask = functions.firestore
             notification: {
                 title: 'Uma nova escala pra você!',
                 body: `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')}${newTask.functions.length > 0 ? ` você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}` : ''}.`
+            },
+            data: {
+                type: 'TASK',
+                id: newTask.id
             }
         }
 
@@ -67,6 +71,10 @@ exports.sendDailyNotifications = functions.pubsub
                 notification: {
                     title: 'Não se esquece hein!',
                     body: `Hoje você está escalado(a) no(a) ${doc.minister.name}`
+                },
+                data: {
+                    type: 'TASK',
+                    id: doc.id
                 }
             }
 
@@ -103,6 +111,10 @@ exports.sendTomorrowNotifications = functions.pubsub
                 notification: {
                     title: 'Não se esquece hein!',
                     body: `Amanhã você está escalado(a) no(a) ${doc.minister.name}`
+                },
+                data: {
+                    type: 'TASK',
+                    id: doc.id
                 }
             }
 
@@ -145,6 +157,9 @@ exports.newChangeRequest = functions.firestore
             notification: {
                 title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
                 body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
+            },
+            data: {
+                type: 'CHANGE_REQUEST',
             }
         }
 
@@ -198,6 +213,9 @@ async function checkAndNotifyNewMinister(snap) {
         notification: {
             title: `Novo ministério`,
             body: `Você acaba de entrar no(a) ${minister.name}.`
+        },
+        data: {
+            type: 'UPDATE_USER'
         }
     };
     return notification;
@@ -215,6 +233,9 @@ async function checkAndNotifyNewMinisterLead(snap) {
             notification: {
                 title: `Novo ministério`,
                 body: `Você acaba de se tornar líder no(a) ${minister.name}.`
+            },
+            data: {
+                type: 'UPDATE_USER'
             }
         };
         return notification;
