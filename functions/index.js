@@ -34,7 +34,7 @@ exports.newTask = functions.firestore
             },
             data: {
                 type: 'TASK',
-                id: newTask.id
+                id: snap.id
             }
         }
 
