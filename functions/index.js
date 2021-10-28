@@ -42,7 +42,7 @@ exports.newTask = functions.firestore
     });
 
 exports.sendDailyNotifications = functions.pubsub
-    .schedule('0 5 * * *') // 8 MORNING
+    .schedule('0 3 * * *') // 8 MORNING
     .onRun(async context => {
         let todayStart = moment()
         let todayEnd = moment()
@@ -83,7 +83,7 @@ exports.sendDailyNotifications = functions.pubsub
     })
 
 exports.sendTomorrowNotifications = functions.pubsub
-    .schedule('0 5 * * *') // 8 MORNING
+    .schedule('0 3 * * *') // 8 MORNING
     .onRun(async context => {
         let tomorrowStart = moment()
         let tomorrowEnd = moment()
@@ -201,6 +201,41 @@ exports.updateUser = functions.firestore
 
         ministersNotification && await sendNotification(tokens, ministersNotification, snap.id)
         ministersLeadNotification && await sendNotification(tokens, ministersLeadNotification, snap.id)
+    })
+
+exports.changeRequestNotify = functions.pubsub
+    .schedule('0 3 * * *') // 8 MORNING
+    .onRun(async context => {
+        const todayTasks = await admin.firestore()
+            .collection('change-request')
+            .where('task.date', '>', moment().startOf('day').toDate())
+            .get()
+
+        const docs = todayTasks.docs
+            .filter(d => !d.done)
+            .map(d => ({ id: d.id, ...d.data() }))
+        functions.logger.info(`docs: ${JSON.stringify(docs.map(d => d.id))}`)
+
+        for await (const doc of docs) {
+            let ministry = await admin.firestore()
+                .collection('users')
+                .doc(doc.task.ministry.id)
+                .get()
+            const tokens = ministry.data().tokens || []
+
+            const notification = {
+                notification: {
+                    title: 'O(A) coleguinha está precisando de ajuda ainda!',
+                    body: `[${doc.task.minister.name}] Precisa de troca no dia ${moment(doc.task.date.toDate()).format('DD/MM/YY')}.`
+                },
+                data: {
+                    type: 'CHANGE_REQUEST',
+                    id: doc.id
+                }
+            }
+
+            await sendNotification(tokens, notification, doc.id)
+        }
     })
 
 async function checkAndNotifyNewMinister(snap) {
