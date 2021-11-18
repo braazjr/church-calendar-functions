@@ -128,42 +128,17 @@ exports.newChangeRequest = functions.firestore
         const newChangeRequest = snap.data();
         const ministerId = newChangeRequest.task.minister.id
 
-        const ministerData = await admin
-            .firestore()
-            .collection('ministers')
-            .doc(ministerId)
-            .get()
-
-        functions.logger.info(`check users from ministerId: ${ministerId}`)
-
-        let targetField = (ministerData.data().changesFree || ministerData.data().changesFree == undefined) ? 'ministers' : 'ministersLead'
-        const usersData = await admin
-            .firestore()
-            .collection('users')
-            .where(targetField, 'array-contains', ministerId)
-            .get()
-
-        if (!usersData) return
-
-        const usersFound = usersData.docs
-            .filter(d => d.id != newChangeRequest.task.ministry.id)
-            .map(d => d.data())
-        functions.logger.info(`users found: ${JSON.stringify(usersFound)}`)
-
-        let tokens = usersFound.map(d => d.tokens) || []
-        tokens = tokens.flat(2)
-
         const notification = {
             notification: {
-                title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
-                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
+                title: `${changeRequest.task.ministry.name} está precisando de ajuda!`,
+                body: `[${changeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
             },
             data: {
                 type: 'CHANGE_REQUEST',
             }
         }
 
-        await sendNotification(tokens, notification, snap.id)
+        await sendMessageToPartners(ministerId, newChangeRequest, notification, snap.id)
     });
 
 exports.deletingTask = functions.firestore
@@ -206,23 +181,18 @@ exports.updateUser = functions.firestore
 exports.changeRequestNotify = functions.pubsub
     .schedule('0 3 * * *') // 8 MORNING
     .onRun(async context => {
-        const todayTasks = await admin.firestore()
-            .collection('change-request')
-            .where('task.date', '>', moment().startOf('day').toDate())
+        const pendingChangeRequests = await admin.firestore()
+            .collection('change-requests')
+            .where('task.date', '>=', admin.firestore.Timestamp.fromDate(moment().startOf('day').toDate()))
+            .where('done', '!=', true)
             .get()
 
-        const docs = todayTasks.docs
+        const docs = pendingChangeRequests.docs
             .filter(d => !d.done)
             .map(d => ({ id: d.id, ...d.data() }))
-        functions.logger.info(`docs: ${JSON.stringify(docs.map(d => d.id))}`)
+        functions.logger.info(`pendingChangeRequests: ${JSON.stringify(docs.map(d => d.id))}`)
 
         for await (const doc of docs) {
-            let ministry = await admin.firestore()
-                .collection('users')
-                .doc(doc.task.ministry.id)
-                .get()
-            const tokens = ministry.data().tokens || []
-
             const notification = {
                 notification: {
                     title: 'O(A) coleguinha está precisando de ajuda ainda!',
@@ -234,7 +204,7 @@ exports.changeRequestNotify = functions.pubsub
                 }
             }
 
-            await sendNotification(tokens, notification, doc.id)
+            await sendMessageToPartners(doc.task.minister.id, doc, notification, doc.id)
         }
     })
 
@@ -257,25 +227,27 @@ async function checkAndNotifyNewMinister(snap) {
 }
 
 async function checkAndNotifyNewMinisterLead(snap) {
-    const newMinister = snap.after.data().ministersLead.find(minister => !snap.before.data().ministersLead.includes(minister));
+    const newMinister = (snap.after.data().ministersLead || []).find(minister => !(snap.before.data().ministersLead || []).includes(minister));
     functions.logger.info(`new ministersLead: ${newMinister}`);
 
-    const minister = await getMinisterById(newMinister);
+    if (newMinister) {
+        const minister = await getMinisterById(newMinister);
 
-    if (minister) {
+        if (minister) {
 
-        const notification = {
-            notification: {
-                title: `Novo ministério`,
-                body: `Você acaba de se tornar líder no(a) ${minister.name}.`
-            },
-            data: {
-                type: 'UPDATE_USER'
-            }
-        };
-        return notification;
-    } else {
-        return undefined
+            const notification = {
+                notification: {
+                    title: `Novo ministério`,
+                    body: `Você acaba de se tornar líder no(a) ${minister.name}.`
+                },
+                data: {
+                    type: 'UPDATE_USER'
+                }
+            };
+            return notification;
+        } else {
+            return undefined
+        }
     }
 }
 
@@ -309,6 +281,39 @@ async function sendNotification(tokens, notification, taskId) {
     notificationResult.results.forEach(r => {
         if (r.error) {
             functions.logger.error(`An ocurred error. taskId: ${taskId}`, r.error.message);
+
+            if (r.error.message.includes('The provided registration token is not registered')) {
+                functions.logger.error(`Token unregisterd`, r.error.stack)
+            }
         }
     });
+}
+
+async function sendMessageToPartners(ministerId, changeRequest, notification, snapId) {
+    const ministerData = await admin
+        .firestore()
+        .collection('ministers')
+        .doc(ministerId)
+        .get()
+
+    functions.logger.info(`check users from ministerId: ${ministerId}`)
+
+    let targetField = (ministerData.data().changesFree || ministerData.data().changesFree == undefined) ? 'ministers' : 'ministersLead'
+    const usersData = await admin
+        .firestore()
+        .collection('users')
+        .where(targetField, 'array-contains', ministerId)
+        .get()
+
+    if (!usersData) return
+
+    const usersFound = usersData.docs
+        .filter(d => d.id != changeRequest.task.ministry.id)
+        .map(d => d.data())
+    functions.logger.info(`users found: ${JSON.stringify(usersFound.map(user => user.id))}`)
+
+    let tokens = usersFound.map(d => d.tokens) || []
+    tokens = tokens.flat(2)
+
+    await sendNotification(tokens, notification, snapId)
 }
