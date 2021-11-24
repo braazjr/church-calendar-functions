@@ -27,10 +27,18 @@ exports.newTask = functions.firestore
         const user = userData.data();
         const tokens = user.tokens || [];
 
+        let message = `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')} você tem `;
+
+        if (newTask.functions && newTask.functions.length > 0) {
+            message.concat(`${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}`)
+        } else {
+            message.concat(`um compromisso`)
+        }
+
         const notification = {
             notification: {
                 title: 'Uma nova escala pra você!',
-                body: `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')}${newTask.functions.length > 0 ? ` você tem ${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}` : ''}.`
+                body: message
             },
             data: {
                 type: 'TASK',
