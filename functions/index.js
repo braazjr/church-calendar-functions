@@ -27,12 +27,12 @@ exports.newTask = functions.firestore
         const user = userData.data();
         const tokens = user.tokens || [];
 
-        let message = `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')} você tem `;
+        let message = `[${newTask.minister.name}] No dia ${moment(newTask.date.toDate()).format('DD/MM/YY')} você tem`;
 
         if (newTask.functions && newTask.functions.length > 0) {
-            message.concat(`${newTask.functions.length > 1 ? 'as funções' : 'a função'}: ${newTask.functions.join(', ')}`)
+            message = `${message}${newTask.functions.length > 1 ? ' as funções' : ' a função'}: ${newTask.functions.join(', ')}`
         } else {
-            message.concat(`um compromisso`)
+            message = `${message} um compromisso`
         }
 
         const notification = {
@@ -138,8 +138,8 @@ exports.newChangeRequest = functions.firestore
 
         const notification = {
             notification: {
-                title: `${changeRequest.task.ministry.name} está precisando de ajuda!`,
-                body: `[${changeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
+                title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
+                body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`
             },
             data: {
                 type: 'CHANGE_REQUEST',
@@ -215,6 +215,43 @@ exports.changeRequestNotify = functions.pubsub
             await sendMessageToPartners(doc.task.minister.id, doc, notification, doc.id)
         }
     })
+
+exports.updateChurchId = functions.https.onRequest((req, res) => {
+    if (!req.query.churchId) {
+        res.send({
+            error: 'The \'churchId\' param is required!'
+        })
+        return
+    }
+
+    let objs = []
+
+    admin
+        .firestore()
+        .collection('users')
+        .get()
+        .then(data => {
+            data.forEach(d => {
+                let obj = { ...d.data() }
+                if (!obj.churchId || obj.churchId == null) {
+                    obj.churchId = req.query.churchId
+                }
+                delete obj.churches
+
+                objs.push(obj)
+
+                admin
+                    .firestore()
+                    .collection('users')
+                    .doc(d.id)
+                    .set(obj)
+                    .finally(() => functions.logger.info(`update churchId on user: ${obj.name}`))
+            })
+        })
+        .finally(() => res.send(objs))
+
+    return;
+})
 
 async function checkAndNotifyNewMinister(snap) {
     const newMinister = snap.after.data().ministers.find(minister => !snap.before.data().ministers.includes(minister));
