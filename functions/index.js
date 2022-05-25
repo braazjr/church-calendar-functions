@@ -108,7 +108,7 @@ exports.sendTomorrowNotifications = functions.pubsub
       const notification = {
         title: 'Não se esquece hein!',
         body: `Amanhã você está escalado(a) no(a) ${doc.minister.name}`,
-        type: NotificationType.TASK,
+        type: 'TASK',
       };
 
       await sendNotification(tokens, notification);
@@ -124,7 +124,7 @@ exports.newChangeRequest = functions.firestore
     const notification = {
       title: `${newChangeRequest.task.ministry.name} está precisando de ajuda!`,
       body: `[${newChangeRequest.task.minister.name}] Precisa de troca no dia ${moment(newChangeRequest.task.date.toDate()).format('DD/MM/YY')}.`,
-      type: NotificationType.CHANGE_REQUEST,
+      type: 'CHANGE_REQUEST',
     };
 
     await sendMessageToPartners(ministerId, newChangeRequest, notification);
@@ -188,7 +188,7 @@ exports.changeRequestNotify = functions.pubsub
       const notification = {
         title: 'O(A) coleguinha está precisando de ajuda ainda!',
         body: `[${doc.task.minister.name}] Precisa de troca no dia ${moment(doc.task.date.toDate()).format('DD/MM/YY')}.`,
-        type: NotificationType.CHANGE_REQUEST,
+        type: 'CHANGE_REQUEST',
       };
 
       await sendMessageToPartners(doc.task.minister.id, doc, notification);
@@ -233,7 +233,7 @@ exports.updateChurchId = functions.https.onRequest((req, res) => {
 });
 
 exports.outagesWeeklyRemember = functions.pubsub
-  .schedule('0 3 * * MON') // 8 MORNING EVERY MONDAY
+  .schedule('0 3 * * WED') // 8 MORNING EVERY MONDAY
   .onRun(async () => {
     const docs = await admin.firestore()
       .collection('ministers')
@@ -248,12 +248,12 @@ exports.outagesWeeklyRemember = functions.pubsub
         .collection('users')
         .where('ministers', 'array-contains', minister.id)
         .get();
-      const tokens = users.docs.map((doc) => (doc.data() || []).tokens).flat(1) || [];
+      const tokens = users.docs.map((doc) => (doc.data() || []).tokens).flat(2) || [];
 
       const notification = {
         title: 'Suas indisponibilidades!',
         body: 'Não se esqueça de informar suas indisponibilidades para essa semana',
-        type: NotificationType.OUTAGES,
+        type: 'OUTAGES',
       };
 
       await sendNotification(tokens, notification);
@@ -281,12 +281,47 @@ exports.outagesMonthlyRemember = functions.pubsub
       const notification = {
         title: 'Suas indisponibilidades!',
         body: 'Não se esqueça de informar suas indisponibilidades para o próximo mês',
-        type: NotificationType.OUTAGES,
+        type: 'OUTAGES',
       };
 
       await sendNotification(tokens, notification);
     }
   });
+
+exports.sendManualNotifications = functions.https.onRequest(async (req, res) => {
+  const { destination, title, message } = req.query
+  const destinationOptions = ['LEADER']
+
+  if (!destinationOptions.includes(destination)) {
+    res
+      .type('json')
+      .send({
+        error: 'DESTINATION_NOT_FOUND',
+        message: `Destination não encontrado. Opções disponíveis: ${destinationOptions}`
+      })
+    return;
+  }
+
+  switch (destination) {
+    case 'LEADER':
+      const data = await admin.firestore()
+        .collection('users')
+        .get()
+      const users = data.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(user => user.ministersLead && user.ministersLead.length > 0)
+        .map(user => ({ ...user, isLeader: true }))
+
+
+
+      res.send({ destination, title, message, users })
+
+      break;
+
+    default:
+      break;
+  }
+})
 
 async function checkAndNotifyNewMinister(snap) {
   const afterMinisters = snap.after.data().ministers;
@@ -302,7 +337,7 @@ async function checkAndNotifyNewMinister(snap) {
       const notification = {
         title: 'Novo ministério',
         body: `Você acaba de entrar no(a) ${minister.name}.`,
-        type: NotificationType.UPDATE_USER,
+        type: 'UPDATE_USER',
       };
 
       return notification;
@@ -318,6 +353,10 @@ async function checkAndNotifyNewMinisterLead(snap) {
   const newMinister = afterMinisters.find((minister) => !beforeMinisters.includes(minister));
   functions.logger.info(`new ministersLead: ${newMinister}`);
 
+  if (beforeMinisters.length == 0) {
+    
+  }
+
   if (newMinister) {
     const minister = await getMinisterById(newMinister);
 
@@ -325,7 +364,7 @@ async function checkAndNotifyNewMinisterLead(snap) {
       const notification = {
         title: 'Novo ministério',
         body: `Você acaba de se tornar líder no(a) ${minister.name}.`,
-        type: NotificationType.UPDATE_USER,
+        type: 'UPDATE_USER',
       };
 
       return notification;
