@@ -175,7 +175,6 @@ exports.changeRequestNotify = functions.pubsub
     const pendingChangeRequests = await admin.firestore()
       .collection('change-requests')
       .where('task.date', '>=', admin.firestore.Timestamp.fromDate(moment().startOf('day').toDate()))
-      .where('done', '!=', true)
       .get();
 
     const docs = pendingChangeRequests.docs
@@ -324,8 +323,8 @@ exports.sendManualNotifications = functions.https.onRequest(async (req, res) => 
 })
 
 async function checkAndNotifyNewMinister(snap) {
-  const afterMinisters = snap.after.data().ministers;
-  const beforeMinisters = snap.before.data().ministers;
+  const afterMinisters = snap.after.data().ministers || [];
+  const beforeMinisters = snap.before.data().ministers || [];
   const newMinister = afterMinisters.find((minister) => !beforeMinisters.includes(minister));
 
   functions.logger.info(`new minister: ${newMinister}`);
