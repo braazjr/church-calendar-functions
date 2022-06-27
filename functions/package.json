@@ -6,7 +6,7 @@
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
+    "deploy": "nvm use 12 && firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
   "engines": {

@@ -317,42 +317,49 @@ async function getMinisterById(newMinister) {
 }
 
 async function findAndDeleteTokenOnUser(canonicalRegistrationToken) {
-  if (canonicalRegistrationToken) {
-    const userData = await admin
-      .firestore()
-      .collection('users')
-      .where('tokens', 'array-contains', canonicalRegistrationToken)
-      .get();
+    if (canonicalRegistrationToken) {
+        const userData = await admin
+            .firestore()
+            .collection('users')
+            .where('tokens', 'array-contains', canonicalRegistrationToken)
+            .get();
 
-    if (!userData.empty && userData.docs[0].exists) {
-      const tokens = userData.docs[0].data().tokens.filter((token) => token != canonicalRegistrationToken);
+        if (!userData.empty && userData.docs[0].exists) {
+            const tokens = userData.docs[0].data().tokens.filter((token) => token != canonicalRegistrationToken);
 
-      admin
-        .firestore()
-        .collection('users')
-        .doc(userData.docs[0].id)
-        .update({ tokens });
+            admin
+                .firestore()
+                .collection('users')
+                .doc(userData.docs[0].id)
+                .update({ tokens });
+        }
     }
-  }
 }
 
 async function sendNotification(tokens, notification, taskId) {
     functions.logger.info(`send notification: ${JSON.stringify({ tokens, notification, taskId })}`)
 
-    const notificationResult = await admin
-        .messaging()
-        .sendToDevice(tokens, notification);
 
-    notificationResult.results.forEach(r => {
-        if (r.error) {
-            functions.logger.error(`An ocurred error. taskId: ${taskId}`, { ...r.error.message, token: r.canonicalRegistrationToken });
-
-            if (r.error.message.includes('The provided registration token is not registered')) {
-                functions.logger.error(`Token unregisterd`, r.error.stack)
-                findAndDeleteTokenOnUser(r.canonicalRegistrationToken)
+    for (const token of tokens) {
+        const notificationResult = await admin
+            .messaging()
+            .sendToDevice(token, notification);
+    
+        await admin
+            .messaging()
+            .send()
+    
+        notificationResult.results.forEach(r => {
+            if (r.error) {
+                functions.logger.error(`An ocurred error. taskId: ${taskId}`, { ...r.error.message, token: r.canonicalRegistrationToken });
+    
+                if (r.error.message.includes('The provided registration token is not registered')) {
+                    functions.logger.error(`Token unregisterd`, token)
+                    findAndDeleteTokenOnUser(token)
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 async function sendMessageToPartners(ministerId, changeRequest, notification, snapId) {
